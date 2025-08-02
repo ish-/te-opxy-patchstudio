@@ -3,6 +3,7 @@ import { EnhancedTooltip } from './EnhancedTooltip';
 import { isMobile, isTablet } from 'react-device-detect';
 import { triggerRotateOverlay } from '../../App';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
+import { useAppContext, type DrumSample, type MultisampleFile } from '../../context/AppContext';
 
 interface WaveformZoomModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface WaveformZoomModalProps {
     sustain: number;
     release: number;
   };
+  onSaveForAll: (payload: Partial<DrumSample | MultisampleFile>) => void;
 }
 
 export function WaveformZoomModal({
@@ -36,6 +38,7 @@ export function WaveformZoomModal({
   loopEnabled = false,
   loopOnRelease = false,
   ampEnvelope,
+  onSaveForAll,
 }: WaveformZoomModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -128,13 +131,13 @@ export function WaveformZoomModal({
 
   const findNearestZeroCrossingLocal = useCallback((position: number, searchDirection: number, maxSearchDistance = 1000): number => {
     if (!audioBuffer) return position;
-    
+
     const data = audioBuffer.getChannelData(0);
     const searchStart = Math.max(0, Math.min(position, data.length - 1));
     let bestPosition = searchStart;
     let minAbsValue = Math.abs(data[searchStart]);
 
-    const searchLimit = Math.min(maxSearchDistance, 
+    const searchLimit = Math.min(maxSearchDistance,
       searchDirection > 0 ? data.length - searchStart : searchStart);
 
     for (let i = 1; i <= searchLimit; i++) {
@@ -239,7 +242,7 @@ export function WaveformZoomModal({
     ctx.fillStyle = '#333333';
     const sampleTriangleSize = 10;
     const squareSize = sampleTriangleSize; // Square width matches triangle base
-    
+
     // Sample start marker (triangle above square, triangle pointing up)
     const squareY = height - squareSize;
     const triBaseY = squareY;
@@ -251,7 +254,7 @@ export function WaveformZoomModal({
     ctx.closePath();
     ctx.fill();
     ctx.fillRect(inPos - squareSize / 2, squareY, squareSize, squareSize);
-    
+
     // Sample end marker (triangle above square, triangle pointing up)
     ctx.beginPath();
     ctx.moveTo(outPos - sampleTriangleSize / 2, triBaseY);
@@ -276,7 +279,7 @@ export function WaveformZoomModal({
       ctx.moveTo(loopStartPos, 0);
       ctx.lineTo(loopStartPos, height);
       ctx.stroke();
-      
+
       ctx.setLineDash([]);
       // Square above triangle
       ctx.fillRect(loopStartPos - squareSize / 2, 0, squareSize, squareSize);
@@ -294,7 +297,7 @@ export function WaveformZoomModal({
       ctx.moveTo(loopEndPos, 0);
       ctx.lineTo(loopEndPos, height);
       ctx.stroke();
-      
+
       ctx.setLineDash([]);
       // Square above triangle
       ctx.fillRect(loopEndPos - squareSize / 2, 0, squareSize, squareSize);
@@ -371,7 +374,7 @@ export function WaveformZoomModal({
 
     // Determine available markers based on vertical zone and sample type
     let availableMarkers: Array<'in' | 'out' | 'loopStart' | 'loopEnd'> = [];
-    
+
     if (hasLoopPoints) {
       if (y <= topZone) {
         availableMarkers = ['loopStart', 'loopEnd'];
@@ -409,7 +412,7 @@ export function WaveformZoomModal({
       });
 
       const closest = Object.keys(distances).reduce((a, b) => distances[a] < distances[b] ? a : b) as 'in' | 'out' | 'loopStart' | 'loopEnd';
-      
+
       let targetFrame = Math.round((x / width) * data.length);
       if (snapToZero) {
         targetFrame = findNearestZeroCrossingLocal(targetFrame, targetFrame > data.length / 2 ? -1 : 1, 500);
@@ -512,7 +515,7 @@ export function WaveformZoomModal({
     const durationSec = audioBuffer.length / audioBuffer.sampleRate;
     const inPointSec = (inFrame / audioBuffer.length) * durationSec;
     const outPointSec = (outFrame / audioBuffer.length) * durationSec;
-    
+
     if (hasLoopPoints) {
       const loopStartSec = (loopStartFrame / audioBuffer.length) * durationSec;
       const loopEndSec = (loopEndFrame / audioBuffer.length) * durationSec;
@@ -525,18 +528,18 @@ export function WaveformZoomModal({
 
   const playSelection = useCallback(async () => {
     if (!audioBuffer) return;
-    
+
     try {
       const noteId = `waveform-preview-${Date.now()}`;
       setCurrentNoteId(noteId);
       setIsPlaying(true);
-      
+
       // Calculate loop points in seconds for the selection
       const selectionStart = inFrame / audioBuffer.sampleRate;
       const selectionEnd = outFrame / audioBuffer.sampleRate;
-      
 
-      
+
+
       await playWithADSR(audioBuffer, noteId, {
         inFrame,
         outFrame,
@@ -640,6 +643,17 @@ export function WaveformZoomModal({
 
   const handleTouchEnd = () => {
     handleMouseUp();
+  };
+
+  const handleSaveForAll = () => {
+    const { sampleRate } = audioBuffer!;
+    onSaveForAll({
+      inPoint: inFrame / sampleRate,
+      outPoint: outFrame / sampleRate,
+      loopStart: loopStartFrame / sampleRate,
+      loopEnd: loopEndFrame / sampleRate,
+    });
+    onClose();
   };
 
   // Focus trap: focus first button on open, restore focus on close
@@ -803,23 +817,23 @@ export function WaveformZoomModal({
             {/* Marker Display */}
             {hasLoopPoints ? (
               // Multisample layout: Row 1: sample start/end, Row 2: loop start/end
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
                 gridTemplateRows: 'auto auto',
-                gap: isMobileDevice() ? '1rem' : '2rem', 
-                marginBottom: isMobileDevice() ? '1rem' : '1.5rem' 
+                gap: isMobileDevice() ? '1rem' : '2rem',
+                marginBottom: isMobileDevice() ? '1rem' : '1.5rem'
               }}>
                 {/* Row 1: Sample Start */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -838,16 +852,16 @@ export function WaveformZoomModal({
                   }}>
                     {audioBuffer ? inFrame.toLocaleString() : '0'}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({audioBuffer ? frameToTime(inFrame).toFixed(3) : '0.000'}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(inFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -858,15 +872,15 @@ export function WaveformZoomModal({
                 </div>
 
                 {/* Row 1: Sample End */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -885,16 +899,16 @@ export function WaveformZoomModal({
                   }}>
                     {audioBuffer ? outFrame.toLocaleString() : '0'}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({audioBuffer ? frameToTime(outFrame).toFixed(3) : '0.000'}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(outFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -905,15 +919,15 @@ export function WaveformZoomModal({
                 </div>
 
                 {/* Row 2: Loop Start */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -932,16 +946,16 @@ export function WaveformZoomModal({
                   }}>
                     {audioBuffer ? loopStartFrame.toLocaleString() : '0'}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({audioBuffer ? frameToTime(loopStartFrame).toFixed(3) : '0.000'}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(loopStartFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -952,15 +966,15 @@ export function WaveformZoomModal({
                 </div>
 
                 {/* Row 2: Loop End */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -979,16 +993,16 @@ export function WaveformZoomModal({
                   }}>
                     {audioBuffer ? loopEndFrame.toLocaleString() : '0'}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({audioBuffer ? frameToTime(loopEndFrame).toFixed(3) : '0.000'}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(loopEndFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -1000,21 +1014,21 @@ export function WaveformZoomModal({
               </div>
             ) : (
               // Drum sample layout: single row
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: isMobileDevice() ? '1rem' : '2rem', 
-                marginBottom: isMobileDevice() ? '1rem' : '1.5rem' 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: isMobileDevice() ? '1rem' : '2rem',
+                marginBottom: isMobileDevice() ? '1rem' : '1.5rem'
               }}>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -1033,16 +1047,16 @@ export function WaveformZoomModal({
                   }}>
                     {inFrame.toLocaleString()}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({frameToTime(inFrame).toFixed(3)}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(inFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -1051,16 +1065,16 @@ export function WaveformZoomModal({
                     {isNearZeroCrossing(inFrame) ? '✓ zero' : '✗ not zero'}
                   </span>
                 </div>
-                
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: isMobileDevice() ? '0.25rem' : '0.5rem',
                   flexWrap: 'nowrap'
                 }}>
-                  <span style={{ 
-                    minWidth: isMobileDevice() ? '70px' : '80px', 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    minWidth: isMobileDevice() ? '70px' : '80px',
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     flexShrink: 0
                   }}>
@@ -1079,16 +1093,16 @@ export function WaveformZoomModal({
                   }}>
                     {outFrame.toLocaleString()}
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.7rem' : '0.75rem',
                     color: c.textSecondary,
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
                     flexShrink: 0
                   }}>
                     frames ({frameToTime(outFrame).toFixed(3)}s)
                   </span>
-                  <span style={{ 
-                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem', 
+                  <span style={{
+                    fontSize: isMobileDevice() ? '0.65rem' : '0.7rem',
                     color: isNearZeroCrossing(outFrame) ? '#6b7280' : '#9ca3af',
                     fontWeight: '500',
                     marginLeft: isMobileDevice() ? '0.25rem' : '0.5rem',
@@ -1099,16 +1113,16 @@ export function WaveformZoomModal({
                 </div>
               </div>
             )}
-            
-            <div style={{ 
-              borderTop: `1px solid ${c.border}`, 
-              paddingTop: isMobileDevice() ? '0.75rem' : '1rem', 
-              marginTop: isMobileDevice() ? '0.75rem' : '1rem' 
+
+            <div style={{
+              borderTop: `1px solid ${c.border}`,
+              paddingTop: isMobileDevice() ? '0.75rem' : '1rem',
+              marginTop: isMobileDevice() ? '0.75rem' : '1rem'
             }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: isMobileDevice() ? '0.75rem' : '1rem', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: isMobileDevice() ? '0.75rem' : '1rem',
                 marginBottom: isMobileDevice() ? '0.75rem' : '1rem',
                 flexWrap: isMobileDevice() ? 'wrap' : 'nowrap'
               }}>
@@ -1153,11 +1167,11 @@ export function WaveformZoomModal({
                   <i className={`fas ${isPlaying ? 'fa-stop' : 'fa-play'}`} style={{ fontSize: isMobileDevice() ? '0.75rem' : '0.8rem' }}></i>
                   {isPlaying ? 'stop (P)' : 'play selection (P)'}
                 </button>
-                <label style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.5rem', 
-                  fontSize: isMobileDevice() ? '0.8rem' : '0.875rem', 
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: isMobileDevice() ? '0.8rem' : '0.875rem',
                   fontWeight: '500',
                   color: 'var(--color-text-primary)',
                   cursor: 'pointer'
@@ -1179,7 +1193,7 @@ export function WaveformZoomModal({
               </div>
             </div>
           </div>
-          
+
           {/* Footer */}
           <div style={{
             padding: isMobileDevice() ? '0.75rem 1rem' : '1rem 1.5rem',
@@ -1190,6 +1204,22 @@ export function WaveformZoomModal({
             gap: isMobileDevice() ? '0.75rem' : '1rem',
             flexShrink: 0
           }}>
+            <button
+              onClick={handleSaveForAll}
+              style={{
+                padding: isMobileDevice() ? '0.75rem 1.25rem' : '0.65rem 1rem',
+                border: `1px solid ${c.border}`,
+                borderRadius: '3px',
+                background: 'transparent',
+                color: c.textSecondary,
+                cursor: 'pointer',
+                fontSize: isMobileDevice() ? '1rem' : '0.875rem',
+                minHeight: isMobileDevice() ? '44px' : undefined
+              }}
+            >
+              save for all
+            </button>
+            <div style={{flexGrow: '999'}} />
             <button
               onClick={onClose}
               style={{
@@ -1224,4 +1254,4 @@ export function WaveformZoomModal({
         </div>
       </div>
   );
-} 
+}

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useAppContext } from '../../context/AppContext';
+import { useAppContext, type DrumSample } from '../../context/AppContext';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { triggerRotateOverlay } from '../../App';
 import { isMobile as isMobileDevice, isTablet } from 'react-device-detect';
@@ -19,9 +19,9 @@ interface DrumSampleTableProps {
 
 // Full drum names from OP-XY documentation - all lowercase
 const drumSampleNames = [
-  'kick', 'kick alt', 'snare', 'snare alt', 'rim', 'hand clap', 
+  'kick', 'kick alt', 'snare', 'snare alt', 'rim', 'hand clap',
   'tambourine', 'shaker', 'closed hi-hat', 'clave', 'open hi-hat', 'cabasa',
-  'low tom', 'ride cymbal', 'mid-tom', 'crash cymbal', 'hi-tom', 'cowbell', 
+  'low tom', 'ride cymbal', 'mid-tom', 'crash cymbal', 'hi-tom', 'cowbell',
   'triangle', 'low tom alt', 'low conga', 'wood stick', 'hi-conga', 'guiro'
 ];
 
@@ -50,7 +50,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
   const [selectedSampleIndex, setSelectedSampleIndex] = useState<number>(0);
   const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
   const [selectedSample, setSelectedSample] = useState<{ index: number; audioBuffer: AudioBuffer; inPoint: number; outPoint: number } | null>(null);
-  
+
   // Drag and drop state for sample swapping (desktop only)
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -65,7 +65,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -109,12 +109,12 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
   const handleDrop = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const files = Array.from(e.dataTransfer.files);
-    const audioFile = files.find(file => 
+    const audioFile = files.find(file =>
       file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.wav')
     );
-    
+
     if (audioFile) {
       handleFileSelect(index, audioFile);
     }
@@ -124,7 +124,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
   const handleSampleDragStart = (e: React.DragEvent, index: number) => {
     const sample = state.drumSamples[index];
     if (!sample?.isLoaded) return; // Only allow dragging loaded samples
-    
+
     setDraggedItem(index);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -141,11 +141,11 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
 
   const handleSampleDrop = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
-    
+
     // Check if this is a file drop (external files)
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      const audioFile = files.find(file => 
+      const audioFile = files.find(file =>
         file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.wav')
       );
       if (audioFile) {
@@ -154,11 +154,11 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
         return;
       }
     }
-    
+
     // Handle sample assignment and swapping
     if (draggedItem !== null && draggedItem !== targetIndex) {
       const draggedSample = state.drumSamples[draggedItem];
-      
+
       // If dropping an unassigned sample on a drum key (0-23), assign it
       if (targetIndex < 24 && draggedSample && !draggedSample.isAssigned) {
         dispatch({
@@ -188,7 +188,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
         });
       }
     }
-    
+
     setDraggedItem(null);
     setHoveredIndex(null);
   };
@@ -202,7 +202,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
     // Check if we're on a mobile device and in portrait mode
     const mobileOrTablet = isMobileDevice || isTablet;
     const isPortraitMode = window.innerHeight > window.innerWidth;
-    
+
     if (mobileOrTablet && isPortraitMode) {
       // Show rotate overlay instead of opening modal
       triggerRotateOverlay(() => {
@@ -256,7 +256,12 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
     closeZoomModal();
   };
 
-
+  const handleSaveForAll = (payload: Partial<DrumSample>) => {
+    dispatch({
+      type: 'UPDATE_ALL_DRUM_SAMPLES',
+      payload,
+    });
+  }
 
   if (isMobile) {
     // Mobile Card Layout
@@ -275,7 +280,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
           {Array.from({ length: 24 }, (_, index) => {
             const sample = state.drumSamples[index];
             const isLoaded = sample?.isLoaded;
-            
+
             return (
               <div key={index}>
                 <input
@@ -285,7 +290,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                   ref={(el) => { fileInputRefs.current[index] = el; }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    
+
                     if (file) {
                       try {
                         handleFileSelect(index, file);
@@ -296,7 +301,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                     e.target.value = '';
                   }}
                 />
-                
+
                 <div
                   style={{
                     background: c.bg,
@@ -325,10 +330,10 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                     }}>
                       {drumSampleNames[index]}
                       {sample?.hasBeenEdited && (
-                        <i 
-                          className="fas fa-pencil-alt" 
-                          style={{ 
-                            fontSize: '14px', 
+                        <i
+                          className="fas fa-pencil-alt"
+                          style={{
+                            fontSize: '14px',
                             color: c.textSecondary,
                             opacity: 0.8
                           }}
@@ -336,7 +341,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                         ></i>
                       )}
                     </div>
-                    
+
                                          {/* Actions - Play, Clear, and Settings */}
                      <div style={{
                        display: 'flex',
@@ -385,7 +390,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                       }}>
                         {sample.name}
                       </div>
-                      
+
                       {/* File Details */}
                       <div style={{ marginBottom: '0.75rem' }}>
                         <FileDetailsBadges
@@ -513,7 +518,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
       }}>
         {state.drumSamples.map((sample, index) => {
           const isLoaded = sample?.isLoaded;
-          
+
           return (
             <div key={index}>
               <input
@@ -529,7 +534,7 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                   e.target.value = '';
                 }}
               />
-              
+
               <div
                 style={{
                   display: 'grid',
@@ -573,10 +578,10 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                   paddingLeft: '16px'
                 }}>
                   {isLoaded && (
-                    <i 
-                      className="fas fa-grip-lines" 
-                      style={{ 
-                        fontSize: '12px', 
+                    <i
+                      className="fas fa-grip-lines"
+                      style={{
+                        fontSize: '12px',
                         color: c.textSecondary,
                         opacity: 0.6,
                         cursor: 'move'
@@ -584,15 +589,15 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
                       title="drag to reorder"
                     ></i>
                   )}
-                  {index < 24 
-                    ? drumSampleNames[index] 
+                  {index < 24
+                    ? drumSampleNames[index]
                     : 'unassigned'
                   }
                   {sample?.hasBeenEdited && (
-                    <i 
-                      className="fas fa-pencil-alt" 
-                      style={{ 
-                        fontSize: '14px', 
+                    <i
+                      className="fas fa-pencil-alt"
+                      style={{
+                        fontSize: '14px',
                         color: c.textSecondary,
                         opacity: 0.8
                       }}
@@ -768,7 +773,8 @@ export function DrumSampleTable({ onFileUpload, onClearSample, onRecordSample }:
         initialInPoint={selectedSample?.inPoint || 0}
         initialOutPoint={selectedSample?.outPoint || 0}
         onSave={handleZoomSave}
+        onSaveForAll={handleSaveForAll}
       />
     </div>
   );
-} 
+}

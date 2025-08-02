@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useAppContext } from '../../context/AppContext';
+import { useAppContext, type MultisampleFile } from '../../context/AppContext';
 import { FileDetailsBadges } from '../common/FileDetailsBadges';
 import { SmallWaveform } from '../common/SmallWaveform';
 import { EnhancedTooltip } from '../common/EnhancedTooltip';
@@ -51,8 +51,8 @@ const actionButtonStyle: React.CSSProperties = {
   flexShrink: 0
 };
 
-export function MultisampleSampleTable({ 
-  onFileUpload, 
+export function MultisampleSampleTable({
+  onFileUpload,
   onClearSample,
   onRecordSample,
   onFilesSelected,
@@ -77,7 +77,7 @@ export function MultisampleSampleTable({
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -86,13 +86,13 @@ export function MultisampleSampleTable({
   // MIDI note conversion helpers
   const parseNoteInput = (input: string): number => {
     const trimmed = input.trim().toUpperCase();
-    
+
     // Check if it's a MIDI number
     if (/^\d+$/.test(trimmed)) {
       const midiNum = parseInt(trimmed);
       return (midiNum >= 0 && midiNum <= 127) ? midiNum : -1;
     }
-    
+
     // Try to parse as note name, using current mapping
     return noteStringToMidiValue(trimmed, state.midiNoteMapping);
   };
@@ -118,13 +118,13 @@ export function MultisampleSampleTable({
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    
+
     const files: File[] = [];
-    
+
     // Use the .items property for robust folder and file handling
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       const items = Array.from(e.dataTransfer.items);
-      
+
       // Process all dropped items in parallel
       const processingPromises = items.map(item => {
         const entry = item.webkitGetAsEntry();
@@ -133,16 +133,16 @@ export function MultisampleSampleTable({
         }
         return Promise.resolve();
       });
-      
+
       await Promise.all(processingPromises);
-      
+
     } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       // Fallback for browsers that don't support .items
       files.push(...Array.from(e.dataTransfer.files));
     }
-    
-    const audioFiles = files.filter(file => 
-      file.type.startsWith('audio/') || 
+
+    const audioFiles = files.filter(file =>
+      file.type.startsWith('audio/') ||
       file.name.toLowerCase().endsWith('.wav') ||
       file.name.toLowerCase().endsWith('.aif') ||
       file.name.toLowerCase().endsWith('.aiff') ||
@@ -151,10 +151,10 @@ export function MultisampleSampleTable({
       file.name.toLowerCase().endsWith('.ogg') ||
       file.name.toLowerCase().endsWith('.flac')
     );
-    
+
     const remainingSlots = 24 - state.multisampleFiles.length;
     const filesToProcess = audioFiles.slice(0, remainingSlots);
-    
+
     if (filesToProcess.length > 0) {
       // Show user feedback about file limit
       if (audioFiles.length > remainingSlots) {
@@ -169,7 +169,7 @@ export function MultisampleSampleTable({
           }
         });
       }
-      
+
       onFilesSelected(filesToProcess);
     } else if (files.length > 0) {
       // No audio files found in dropped items - can provide user feedback if desired
@@ -193,7 +193,7 @@ export function MultisampleSampleTable({
         files.push(file);
       } else if (entry.isDirectory) {
         const reader = entry.createReader();
-        
+
         // Read all entries from the directory
         const readEntries = (): Promise<any[]> => {
           return new Promise((resolve, reject) => {
@@ -209,11 +209,11 @@ export function MultisampleSampleTable({
             });
           });
         };
-        
+
         // Read all entries recursively (handle large directories)
         let allEntries: any[] = [];
         let hasMore = true;
-        
+
         while (hasMore) {
           const entries = await readEntries();
           if (entries.length === 0) {
@@ -222,7 +222,7 @@ export function MultisampleSampleTable({
             allEntries = allEntries.concat(entries);
           }
         }
-        
+
         // Process all entries in parallel for better performance
         await Promise.all(allEntries.map(childEntry => processEntry(childEntry, files)));
       }
@@ -247,7 +247,7 @@ export function MultisampleSampleTable({
       const audioFiles = await extractAudioFiles(files);
       const remainingSlots = 24 - state.multisampleFiles.length;
       const filesToProcess = audioFiles.slice(0, remainingSlots);
-      
+
       if (filesToProcess.length > 0) {
         // Show user feedback about file limit
         if (audioFiles.length > remainingSlots) {
@@ -262,7 +262,7 @@ export function MultisampleSampleTable({
             }
           });
         }
-        
+
         onFilesSelected(filesToProcess);
       } else {
         console.log('No audio files found in selected files');
@@ -273,9 +273,9 @@ export function MultisampleSampleTable({
 
   const extractAudioFiles = async (files: File[]): Promise<File[]> => {
     const audioFiles: File[] = [];
-    
+
     for (const file of files) {
-      if (file.type.startsWith('audio/') || 
+      if (file.type.startsWith('audio/') ||
           file.name.toLowerCase().endsWith('.wav') ||
           file.name.toLowerCase().endsWith('.aif') ||
           file.name.toLowerCase().endsWith('.aiff') ||
@@ -286,7 +286,7 @@ export function MultisampleSampleTable({
         audioFiles.push(file);
       }
     }
-    
+
     return audioFiles;
   };
 
@@ -318,9 +318,9 @@ export function MultisampleSampleTable({
         // Valid note - update the state
         dispatch({
           type: 'UPDATE_MULTISAMPLE_FILE',
-          payload: { 
-            index, 
-            updates: { 
+          payload: {
+            index,
+            updates: {
               rootNote: midiNote
             }
           }
@@ -360,7 +360,7 @@ export function MultisampleSampleTable({
 
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
-    
+
     if (draggedItem !== null && draggedItem !== targetIndex) {
       dispatch({
         type: 'REORDER_MULTISAMPLE_FILES',
@@ -370,7 +370,7 @@ export function MultisampleSampleTable({
         }
       });
     }
-    
+
     setDraggedItem(null);
     setHoveredIndex(null);
   };
@@ -387,14 +387,14 @@ export function MultisampleSampleTable({
     try {
       // Get ADSR settings from current multisample settings
       const adsrSettings = state.multisampleSettings.ampEnvelope;
-      
+
       // Get play mode from current multisample settings
       const playMode = state.multisampleSettings.playmode;
-      
+
       // Use the ADSR-enabled audio player with the same functionality as keyboard play
       const noteId = `multisample-table-${index}-${Date.now()}`;
       setCurrentPlayingNoteId(noteId);
-      
+
       await playWithADSR(sample.audioBuffer, noteId, {
         playbackRate: 1, // No pitch shifting for table play
         gain: state.multisampleSettings.gain || 0,
@@ -444,10 +444,10 @@ export function MultisampleSampleTable({
   const handleRowDrop = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const files = Array.from(e.dataTransfer.files);
-    const audioFile = files.find(file => 
-      file.type.startsWith('audio/') || 
+    const audioFile = files.find(file =>
+      file.type.startsWith('audio/') ||
       file.name.toLowerCase().endsWith('.wav') ||
       file.name.toLowerCase().endsWith('.aif') ||
       file.name.toLowerCase().endsWith('.aiff') ||
@@ -456,7 +456,7 @@ export function MultisampleSampleTable({
       file.name.toLowerCase().endsWith('.ogg') ||
       file.name.toLowerCase().endsWith('.flac')
     );
-    
+
     if (audioFile) {
       handleFileInputChange(index, { target: { files: [audioFile] } } as any);
     }
@@ -486,6 +486,13 @@ export function MultisampleSampleTable({
     });
   };
 
+  const handleSaveForAll = (payload: Partial<MultisampleFile>) => {
+    dispatch({
+      type: 'UPDATE_ALL_MULTI_SAMPLES',
+      payload,
+    });
+  }
+
   if (isMobile) {
     // Mobile Card Layout - similar to drum tool
     return (
@@ -502,7 +509,7 @@ export function MultisampleSampleTable({
         />
 
         {state.multisampleFiles.length === 0 ? (
-          <div 
+          <div
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -540,7 +547,7 @@ export function MultisampleSampleTable({
             {[...state.multisampleFiles].reverse().map((sample, reversedIndex) => {
               // Convert reversed index back to original index
               const index = state.multisampleFiles.length - 1 - reversedIndex;
-              
+
               return (
               <div key={index}>
                 <input
@@ -550,7 +557,7 @@ export function MultisampleSampleTable({
                   ref={(el) => { fileInputRefs.current[index] = el; }}
                   onChange={(e) => handleFileInputChange(index, e)}
                 />
-                
+
                 <div
                                      style={{
                      background: c.bg,
@@ -595,8 +602,8 @@ export function MultisampleSampleTable({
                             fontWeight: '600'
                           }}
                         />
-                        <div style={{ 
-                          fontSize: '0.7rem', 
+                        <div style={{
+                          fontSize: '0.7rem',
                           color: c.textSecondary,
                           textAlign: 'center'
                         }}>
@@ -612,7 +619,7 @@ export function MultisampleSampleTable({
                         empty slot
                       </div>
                     )}
-                    
+
                     <div style={{
                       display: 'flex',
                       gap: '0.25rem'
@@ -665,16 +672,16 @@ export function MultisampleSampleTable({
 
                   {sample?.isLoaded ? (
                     <>
-                      <div style={{ 
-                        fontWeight: '500', 
-                        color: c.text, 
+                      <div style={{
+                        fontWeight: '500',
+                        color: c.text,
                         marginBottom: '0.1rem',
                         fontSize: '0.8rem',
                         wordBreak: 'break-word'
                       }}>
                         {sample.name}
                       </div>
-                      
+
                       <div style={{ marginBottom: '0.1rem' }}>
                         <FileDetailsBadges
                           duration={sample.duration}
@@ -819,10 +826,10 @@ export function MultisampleSampleTable({
               onMouseEnter={() => setIsKeyHelpTooltipVisible(true)}
               onMouseLeave={() => setIsKeyHelpTooltipVisible(false)}
             >
-              <i 
-                className="fas fa-question-circle" 
-                style={{ 
-                  fontSize: '14px', 
+              <i
+                className="fas fa-question-circle"
+                style={{
+                  fontSize: '14px',
                   color: c.textSecondary,
                   cursor: 'help'
                 }}
@@ -887,7 +894,7 @@ export function MultisampleSampleTable({
           [...state.multisampleFiles].reverse().map((sample, reversedIndex) => {
             // Convert reversed index back to original index
             const index = state.multisampleFiles.length - 1 - reversedIndex;
-            
+
             const isDragging = draggedItem === index;
             const isDraggedOver = hoveredIndex === index && draggedItem !== null && draggedItem !== index;
 
@@ -900,7 +907,7 @@ export function MultisampleSampleTable({
                   ref={(el) => { fileInputRefs.current[index] = el; }}
                   onChange={(e) => handleFileInputChange(index, e)}
                 />
-                
+
                 <div
                   draggable={sample?.isLoaded}
                   onDragStart={(e) => handleDragStart(e, index)}
@@ -1089,10 +1096,10 @@ export function MultisampleSampleTable({
                   )}
 
                   {/* Actions Column */}
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '0.25rem', 
-                    justifyContent: 'center', 
+                  <div style={{
+                    display: 'flex',
+                    gap: '0.25rem',
+                    justifyContent: 'center',
                     alignItems: 'center',
                     paddingRight: '16px'
                   }}>
@@ -1180,6 +1187,7 @@ export function MultisampleSampleTable({
         loopEnabled={state.multisampleSettings.loopEnabled}
         loopOnRelease={state.multisampleSettings.loopOnRelease}
         ampEnvelope={state.multisampleSettings.ampEnvelope}
+        onSaveForAll={handleSaveForAll}
       />
     </div>
   );
